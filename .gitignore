@@ -1,22 +1,17 @@
+.idea/
+.vscode/
+
 # Terraform
-**/.terraform/*
+.terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
-crash.log
-*.tfplan
 
 # Python
-__pycache__/
-*.pyc
 .venv/
+__pycache__/
 
 # Node
 node_modules/
 
-# Env files
+# Environment
 .env
-
-# OS
-.DS_Store
-Thumbs.db
