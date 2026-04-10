@@ -4,26 +4,13 @@ metadata:
   name: voice-ingress
   namespace: voice-assistant
   annotations:
-    kubernetes.io/ingress.class: "alb"
-    alb.ingress.kubernetes.io/scheme: "internet-facing"
-    alb.ingress.kubernetes.io/target-type: "ip"
-    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:..."
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
-    # Critical: increase idle timeout for long WebSocket connections
-    alb.ingress.kubernetes.io/load-balancer-attributes:
-      idle_timeout.timeout_seconds=300
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
 spec:
+  ingressClassName: alb
   rules:
-  - host: app.yourdomain.com
-    http:
+  - http:
       paths:
-      - path: /ws/
-        pathType: Prefix
-        backend:
-          service:
-            name: voice-backend-svc
-            port:
-              number: 80
       - path: /
         pathType: Prefix
         backend:

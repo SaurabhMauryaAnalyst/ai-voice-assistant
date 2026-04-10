@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-config
+  namespace: voice-assistant
+data:
+  # Redis endpoint from terraform output redis_endpoint
+  # Format: hostname only — code adds redis:// prefix
+  redis-url: "redis://voice-redis.xxxxx.cfg.use1.cache.amazonaws.com:6379"
+
+  # AWS region where Transcribe and Polly are called
+  aws-region: "us-east-1"
+
+  # Log level (change to DEBUG when troubleshooting)
+  log-level: "INFO"
+
+  # Max conversation turns kept in Redis per session
+  max-history-turns: "10"

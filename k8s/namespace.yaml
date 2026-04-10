@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voice-assistant
+  labels:
+    # Labels let you select/filter this namespace with kubectl
+    app: voice-assistant
+    environment: production

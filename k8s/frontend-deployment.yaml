@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-frontend
+  namespace: voice-assistant
+spec:
+  replicas: 2       # 2 nginx pods behind the ALB
+  selector:
+    matchLabels:
+      app: voice-frontend
+  template:
+    metadata:
+      labels:
+        app: voice-frontend
+    spec:
+      containers:
+      - name: frontend
+        # REPLACE with your account ID
+        image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/voice-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "50m"       # nginx is very lightweight
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        livenessProbe:
+          httpGet:
+            path: /health    # defined in nginx.conf
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5
