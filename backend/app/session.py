@@ -1,67 +1,58 @@
-import os
-import json
 import redis
+import json
+import os
 import asyncio
 
-# Redis connection
-REDIS_HOST = os.getenv("REDIS_HOST", "redis")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+# Detect environment
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 
 redis_client = redis.Redis(
     host=REDIS_HOST,
-    port=REDIS_PORT,
+    port=6379,
     decode_responses=True
 )
 
-SESSION_TTL = 3600   # session expires after 1 hour
+SESSION_TTL = 3600
 
 
-async def get_history(session_id: str):
-    """
-    Fetch conversation history from Redis.
-    Returns list of messages formatted for Claude API.
-    """
-
-    loop = asyncio.get_event_loop()
-
-    data = await loop.run_in_executor(
-        None,
-        redis_client.get,
-        f"session:{session_id}"
-    )
-
-    if not data:
-        return []
+async def get_history(session):
 
     try:
+        loop = asyncio.get_event_loop()
+
+        data = await loop.run_in_executor(
+            None,
+            redis_client.get,
+            f"session:{session}"
+        )
+
+        if not data:
+            return []
+
         return json.loads(data)
-    except Exception:
+
+    except Exception as e:
+        print("Redis read error:", e)
         return []
 
 
-async def append_history(session_id: str, user_text: str, assistant_text: str):
-    """
-    Append a new conversation turn to Redis history.
-    """
+async def append_history(session, user, assistant):
 
-    history = await get_history(session_id)
+    try:
+        history = await get_history(session)
 
-    history.append({
-        "role": "user",
-        "content": user_text
-    })
+        history.append({"role": "user", "content": user})
+        history.append({"role": "assistant", "content": assistant})
 
-    history.append({
-        "role": "assistant",
-        "content": assistant_text
-    })
+        loop = asyncio.get_event_loop()
 
-    loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            redis_client.setex,
+            f"session:{session}",
+            SESSION_TTL,
+            json.dumps(history)
+        )
 
-    await loop.run_in_executor(
-        None,
-        redis_client.setex,
-        f"session:{session_id}",
-        SESSION_TTL,
-        json.dumps(history)
-    )
+    except Exception as e:
+        print("Redis write error:", e)

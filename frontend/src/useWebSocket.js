@@ -1,52 +1,74 @@
-import { useRef, useCallback } from 'react';
+import { useRef } from "react"
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'wss://api.yourdomain.com/ws/voice';
+export default function useWebSocket() {
 
-export function useWebSocket({ onTranscript, onAudioChunk, onAssistantDone }) {
-  const wsRef = useRef(null);
-  const sessionId = useRef(crypto.randomUUID());
+  const wsRef = useRef(null)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
 
-  const connect = useCallback(() => {
-    const ws = new WebSocket(
-      `${WS_URL}?session=${sessionId.current}`
-    );
-    ws.binaryType = 'arraybuffer';
+  const startListening = async () => {
 
-    ws.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'transcript')    onTranscript?.(msg.text);
-        if (msg.type === 'assistant_done') onAssistantDone?.();
-      } else {
-        // Binary = MP3 audio chunk from Polly
-        onAudioChunk?.(event.data);
-      }
-    };
+    // always create new websocket
+    const ws = new WebSocket("ws://localhost:8000/ws/voice")
 
-    wsRef.current = ws;
-    return ws;
-  }, [onTranscript, onAudioChunk, onAssistantDone]);
+    ws.binaryType = "arraybuffer"
 
-  // Send raw Float32 PCM audio to backend
-  const sendAudio = useCallback((float32Array) => {
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(float32Array.buffer);
+    ws.onopen = () => {
+      console.log("WebSocket connected")
     }
-  }, []);
 
-  // Tell backend to stop generating (user interrupted)
-  const sendStop = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ type: 'stop' }));
-  }, []);
+    ws.onmessage = async (event) => {
 
-  const sendEndUtterance = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ type: 'end_utterance' }));
-  }, []);
+      const blob = new Blob([event.data], { type: "audio/wav" })
+      const url = URL.createObjectURL(blob)
 
-  const disconnect = useCallback(() => {
-    wsRef.current?.close();
-  }, []);
+      const audio = new Audio(url)
+      await audio.play()
+    }
 
-  return { connect, sendAudio, sendStop, sendEndUtterance, disconnect };
+    ws.onclose = () => {
+      console.log("WebSocket closed")
+    }
+
+    wsRef.current = ws
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+    const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" })
+
+    recorderRef.current = recorder
+    chunksRef.current = []
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunksRef.current.push(event.data)
+      }
+    }
+
+    recorder.start()
+  }
+
+
+  const stopListening = async () => {
+
+    const recorder = recorderRef.current
+    const ws = wsRef.current
+
+    if (!recorder || !ws) return
+
+    recorder.stop()
+
+    recorder.onstop = async () => {
+
+      const blob = new Blob(chunksRef.current, { type: "audio/webm" })
+      const buffer = await blob.arrayBuffer()
+
+      ws.send(buffer)
+      ws.send("stop")
+
+      chunksRef.current = []
+    }
+  }
+
+  return { startListening, stopListening }
 }

@@ -3,64 +3,106 @@ kind: Deployment
 metadata:
   name: voice-backend
   namespace: voice-assistant
+  labels:
+    app: voice-backend
 spec:
-  replicas: 2
+  replicas: 2           # start with 2 pods (HPA will scale from here)
+
   selector:
     matchLabels:
-      app: voice-backend
-  template:
+      app: voice-backend   # selects pods with this label
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # during update: allow 1 extra pod temporarily
+      maxUnavailable: 0    # during update: never let available pods drop below replicas
+      # Together: always have 2 running, briefly allow 3, then drop to 2
+
+  template:             # blueprint for each pod
     metadata:
       labels:
         app: voice-backend
     spec:
-      serviceAccountName: voice-backend-sa  # IRSA for AWS Transcribe + Polly
+      # Use the ServiceAccount that has AWS Transcribe + Polly access via IRSA
+      serviceAccountName: voice-backend-sa
+
       containers:
       - name: backend
-        image: 123456789.dkr.ecr.us-east-1.amazonaws.com/voice-backend:latest
+        # REPLACE 123456789012 with your AWS account ID
+        image: 966725471159.dkr.ecr.us-east-1.amazonaws.com/voice-backend:v2
+
         ports:
         - containerPort: 8000
           name: http
+
+        # ── Environment variables ─────────────────────────
         env:
+        # From Secret — value stays encrypted, never visible in logs
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
               name: voice-secrets
-              key: anthropic-api-key
+              key: ANTHROPIC_API_KEY
+
+        # From ConfigMap — non-sensitive config
         - name: REDIS_URL
           valueFrom:
             configMapKeyRef:
               name: voice-config
               key: redis-url
+
         - name: AWS_DEFAULT_REGION
-          value: "us-east-1"
+          valueFrom:
+            configMapKeyRef:
+              name: voice-config
+              key: aws-region
+
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: voice-config
+              key: log-level
+
+        # ── Resource limits ───────────────────────────────
+        # requests: guaranteed minimum (used for scheduling)
+        # limits:   hard maximum (container killed if exceeded)
         resources:
           requests:
-            cpu: "250m"
-            memory: "512Mi"
+            cpu: "250m"      # 250 millicores = 0.25 CPU cores
+            memory: "512Mi"  # 512 MB RAM guaranteed
           limits:
-            cpu: "1000m"
-            memory: "1Gi"
+            cpu: "1000m"     # max 1 full CPU core
+            memory: "1Gi"    # max 1 GB RAM — OOMKilled if exceeded
+
+        # ── Liveness probe ────────────────────────────────
+        # If this fails 3 times → container is RESTARTED
+        # Use for: "is the app fundamentally broken/hung?"
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 15
+          initialDelaySeconds: 15  # wait 15s after start before first check
+          periodSeconds: 20        # check every 20s
+          failureThreshold: 3      # 3 failures → restart
+
+        # ── Readiness probe ───────────────────────────────
+        # If this fails → pod REMOVED from Service load balancer
+        # Use for: "is the app ready to receive traffic?"
         readinessProbe:
           httpGet:
-            path: /ready
+            path: /health
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 5
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: voice-backend-svc
-  namespace: voice-assistant
-spec:
-  selector:
-    app: voice-backend
-  ports:
-  - port: 80
-    targetPort: 8000
+          failureThreshold: 2      # 2 failures → stop sending traffic
+
+        # ── Graceful shutdown ─────────────────────────────
+        # When pod is being terminated, wait up to 30s for in-flight
+        # WebSocket connections to complete before force-killing
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "5"]  # brief pause for ALB to deregister
+
+      terminationGracePeriodSeconds: 30

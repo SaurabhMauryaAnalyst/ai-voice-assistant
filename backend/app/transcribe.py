@@ -1,39 +1,69 @@
-import boto3, asyncio, struct
-from amazon_transcribe.client import TranscribeStreamingClient
-from amazon_transcribe.handlers import TranscriptResultStreamHandler
-from amazon_transcribe.model import TranscriptEvent
+import os
+import whisper
+import subprocess
+import asyncio
+import uuid
 
-class ResultHandler(TranscriptResultStreamHandler):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.transcript = ""
+print("Loading Whisper model...")
+model = whisper.load_model("tiny")   # fastest CPU model
+print("Whisper model loaded.")
 
-    async def handle_transcript_event(self, event: TranscriptEvent):
-        for result in event.transcript.results:
-            if not result.is_partial:
-                self.transcript += " ".join(
-                    alt.transcript
-                    for alt in result.alternatives
-                )
 
-async def transcribe_audio(pcm_bytes: bytes) -> str:
-    """Send Float32 PCM (16kHz mono) to AWS Transcribe, get text back."""
-    client = TranscribeStreamingClient(region="us-east-1")
-    stream = await client.start_stream_transcription(
-        language_code="en-US",
-        media_sample_rate_hz=16000,
-        media_encoding="pcm",
-    )
-    handler = ResultHandler(stream.output_stream)
+async def transcribe_audio(audio_bytes):
 
-    async def send_audio():
-        # Send in 200ms chunks (6400 bytes at 16kHz 16-bit)
-        chunk_size = 6400
-        for i in range(0, len(pcm_bytes), chunk_size):
-            await stream.input_stream.send_audio_event(
-                audio_chunk=pcm_bytes[i:i+chunk_size]
+    try:
+        print("Transcribing audio...")
+
+        # create unique filenames
+        uid = str(uuid.uuid4())
+        webm_path = f"{uid}.webm"
+        wav_path = f"{uid}.wav"
+
+        # save audio from browser
+        with open(webm_path, "wb") as f:
+            f.write(audio_bytes)
+
+        # convert webm → wav using ffmpeg
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i", webm_path,
+                "-ac", "1",
+                "-ar", "16000",
+                "-vn",
+                "-f","wav",
+                wav_path
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+
+        loop = asyncio.get_event_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            lambda: model.transcribe(
+                wav_path,
+                language="en",
+                fp16=False
             )
-        await stream.input_stream.end_stream()
+        )
 
-    await asyncio.gather(send_audio(), handler.handle_events())
-    return handler.transcript.strip()
+        text = result["text"].strip()
+
+        # cleanup temp files
+        if os.path.exists(webm_path):
+            os.remove(webm_path)
+
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+
+
+
+        return text
+
+    except Exception as e:
+        print("Transcription error:", e)
+        return ""

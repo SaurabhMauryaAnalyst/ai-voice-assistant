@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -5,4 +6,13 @@ metadata:
   labels:
     # Labels let you select/filter this namespace with kubectl
     app: voice-assistant
+=======
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voice-assistant
+  labels:
+    # Labels let you select/filter this namespace with kubectl
+    app: voice-assistant
+>>>>>>> 5aac4dd (Update AI Voice Assistant: add tool routing, k8s deployment,  Terraform infrastructure)
     environment: production

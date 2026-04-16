@@ -1,23 +1,23 @@
-import boto3, asyncio
-from functools import partial
+import pyttsx3
+import asyncio
+import tempfile
 
-_polly = boto3.client("polly", region_name="us-east-1")
+engine = pyttsx3.init()
 
-async def synthesize_speech(text: str) -> bytes | None:
-    """Convert text to MP3 using AWS Polly Neural TTS (Matthew voice)."""
-    if not text: return None
+async def synthesize_speech(text):
+
     loop = asyncio.get_event_loop()
 
-    # Run blocking boto3 call in thread pool
-    response = await loop.run_in_executor(
-        None,
-        partial(
-            _polly.synthesize_speech,
-            Text=text,
-            VoiceId="Matthew",      # or "Joanna", "Aria"
-            Engine="neural",         # neural for high quality
-            OutputFormat="mp3",
-            SampleRate="22050",
-        )
-    )
-    return response["AudioStream"].read()
+    def generate():
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+
+            path = f.name
+
+        engine.save_to_file(text, path)
+        engine.runAndWait()
+
+        with open(path, "rb") as f:
+            return f.read()
+
+    return await loop.run_in_executor(None, generate)

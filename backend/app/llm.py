@@ -1,31 +1,58 @@
-import anthropic, os
-from typing import AsyncIterator
+import requests
+import asyncio
 
-client = anthropic.AsyncAnthropic(
-    api_key=os.environ["ANTHROPIC_API_KEY"]
-)
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
-SYSTEM_PROMPT = """You are a knowledgeable, concise voice assistant.
-You have broad knowledge across all domains.
-Keep answers SHORT and CONVERSATIONAL — you are speaking aloud.
-Never use markdown, bullet points, or numbered lists.
-Use natural spoken language only."""
+SYSTEM_PROMPT = """
+You are a voice assistant.
 
-async def stream_claude_response(
-    user_text: str,
-    history: list
-) -> AsyncIterator[str]:
-    """Stream tokens from Claude claude-sonnet-4-20250514."""
-    messages = [
-        *history,   # prior turns from Redis
-        {"role": "user", "content": user_text}
-    ]
+Rules:
+- Speak in short sentences.
+- Maximum 15 words.
+- Do not hallucinate facts.
+- If unsure, say you don't know.
+"""
 
-    async with client.messages.stream(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=messages,
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
+
+async def stream_llm_response(user_text, history):
+
+    prompt = SYSTEM_PROMPT + "\n\nUser: " + user_text + "\nAssistant:"
+
+    loop = asyncio.get_event_loop()
+
+    def call_ollama():
+
+        try:
+            response = requests.post(
+                OLLAMA_URL,
+                json={
+                    "model": "phi3",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": 30,
+                        "top_p": 0.8
+                    }
+                },
+                timeout=60
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            text = data.get("response", "").strip()
+
+            # hard limit sentences
+            text = text.split(".")[0] + "."
+
+            return text
+
+        except Exception as e:
+            print("Ollama error:", e)
+            return "Sorry, I couldn't answer that."
+
+    result = await loop.run_in_executor(None, call_ollama)
+
+    yield result

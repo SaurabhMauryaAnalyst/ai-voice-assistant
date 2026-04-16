@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # NOTE: This is a LOCAL Redis pod for testing only.
 # In production we use AWS ElastiCache (provisioned by Terraform).
 # This pod is useful for local cluster testing without ElastiCache.
@@ -29,4 +30,37 @@ spec:
             cpu: "200m"
             memory: "256Mi"
         command: ["redis-server", "--maxmemory", "200mb",
+=======
+# NOTE: This is a LOCAL Redis pod for testing only.
+# In production we use AWS ElastiCache (provisioned by Terraform).
+# This pod is useful for local cluster testing without ElastiCache.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: voice-assistant
+spec:
+  replicas: 1     # single Redis — ElastiCache handles HA in production
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine    # public image — no ECR needed
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        command: ["redis-server", "--maxmemory", "200mb",
+>>>>>>> 5aac4dd (Update AI Voice Assistant: add tool routing, k8s deployment,  Terraform infrastructure)
                   "--maxmemory-policy", "allkeys-lru"]

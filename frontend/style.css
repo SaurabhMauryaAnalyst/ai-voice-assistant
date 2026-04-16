@@ -1,0 +1,35 @@
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg,#3b5fa0,#27c6d9);
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.card{
+  background:white;
+  padding:40px;
+  border-radius:20px;
+  text-align:center;
+  box-shadow:0 10px 30px rgba(0,0,0,0.2);
+}
+
+.start{
+  background:green;
+  color:white;
+  border:none;
+  padding:10px 20px;
+  margin-right:10px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.stop{
+  background:red;
+  color:white;
+  border:none;
+  padding:10px 20px;
+  border-radius:8px;
+  cursor:pointer;
+}

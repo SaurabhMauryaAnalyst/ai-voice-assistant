@@ -1,17 +1,23 @@
-.idea/
-.vscode/
-
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-
 # Python
-.venv/
 __pycache__/
+*.pyc
+.venv/
+
+# Audio temp files
+*.wav
+*.webm
 
 # Node
 node_modules/
 
-# Environment
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Env
 .env
+
+# Logs
+*.log
