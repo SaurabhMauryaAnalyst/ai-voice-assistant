@@ -1,6 +1,6 @@
 AI Voice Assistant
 
-A AI Voice Assistant built using React, FastAPI, Whisper, and Ollama that allows users to interact with an AI system through voice commands.
+An AI Voice Assistant built using React, FastAPI, Whisper, and Ollama that allows users to interact with an AI system through voice commands.
 The system converts speech into text, processes it using tools or a local LLM, and returns a spoken response.
 
 The project runs entirely locally without external AI APIs, ensuring privacy and offline capability.
